@@ -1,0 +1,78 @@
+version: "3.9"  # Compose file format version
+
+services:
+  prometheus:
+    image: prom/prometheus:latest  # Prometheus server image
+    container_name: watchtower-prometheus  # Fixed container name for easier debugging
+    ports:
+      - "9090:9090"  # Expose Prometheus UI on localhost:9090
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro  # Mount Prometheus config as read-only
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml  # Tell Prometheus where its config is
+      - --storage.tsdb.path=/prometheus  # Internal path for time-series data
+    restart: unless-stopped  # Restart automatically unless you manually stop it
+    networks:
+      - watchtower  # Attach service to the custom bridge network
+
+  loki:
+    image: grafana/loki:3.0.0  # Loki image for log aggregation
+    container_name: watchtower-loki
+    ports:
+      - "3100:3100"  # Expose Loki API on localhost:3100
+    volumes:
+      - ./docker/loki/config.yml:/etc/loki/local-config.yaml:ro  # Mount Loki config
+    command: -config.file=/etc/loki/local-config.yaml  # Start Loki using mounted config
+    restart: unless-stopped
+    networks:
+      - watchtower
+
+  promtail:
+    image: grafana/promtail:3.0.0  # Promtail ships logs into Loki
+    container_name: watchtower-promtail
+    volumes:
+      - ./docker/promtail/config.yml:/etc/promtail/config.yml:ro  # Mount Promtail config
+      - ./logs:/var/log/watchtower:ro  # Mount your local logs folder into the container
+    command: -config.file=/etc/promtail/config.yml  # Start Promtail with mounted config
+    depends_on:
+      - loki  # Start Loki before Promtail
+    restart: unless-stopped
+    networks:
+      - watchtower
+
+  grafana:
+    image: grafana/grafana:latest  # Grafana UI and dashboards
+    container_name: watchtower-grafana
+    ports:
+      - "3000:3000"  # Expose Grafana UI on localhost:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin  # Default login username
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Default login password
+      - GF_USERS_ALLOW_SIGN_UP=false  # Disable public self-signup
+    volumes:
+      - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro  # Auto-load datasources
+    depends_on:
+      - prometheus  # Start after Prometheus
+      - loki        # Start after Loki
+    restart: unless-stopped
+    networks:
+      - watchtower
+
+  job-runner:
+    build:
+      context: ./app  # Build Python job container from ./app/Dockerfile
+    container_name: watchtower-job-runner
+    volumes:
+      - ./logs:/app/logs  # Persist logs from the Python app into the local logs folder
+    environment:
+      - LOG_FILE=/app/logs/heartbeat.log  # Path where the Python job writes logs
+      - METRICS_PORT=8000  # Port where the Python app exposes Prometheus metrics
+    ports:
+      - "8000:8000"  # Expose metrics endpoint on localhost:8000
+    restart: unless-stopped
+    networks:
+      - watchtower
+
+networks:
+  watchtower:
+    driver: bridge  # Isolated internal Docker network for service-to-service communication
