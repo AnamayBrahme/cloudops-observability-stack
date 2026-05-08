@@ -29,16 +29,6 @@ This stack has two main pipelines:
 - **Metrics flow:** `job-runner -> Prometheus -> Grafana`
 - **Logs flow:** `job-runner -> log file -> Promtail -> Loki -> Grafana`
 
-```mermaid
-flowchart LR
-    A[Python job-runner] -->|/metrics| B[Prometheus]
-    A -->|heartbeat.log| C[logs/]
-    C --> D[Promtail]
-    D --> E[Loki]
-    B --> F[Grafana]
-    E --> F[Grafana]
-```
-
 ### Architecture diagram image
 
 This image shows the same architecture visually as a reference for the documentation.
