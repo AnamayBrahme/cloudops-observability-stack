@@ -13,18 +13,22 @@ os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
-    ],
+    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()],
 )
 
 job_runs_total = Counter("job_runs_total", "Total number of job runs", ["job_name"])
-job_failures_total = Counter("job_failures_total", "Total number of failed job runs", ["job_name"])
-job_duration_seconds = Histogram("job_duration_seconds", "Job duration in seconds", ["job_name"])
-job_last_success = Gauge("job_last_success_timestamp", "Unix timestamp of last successful run", ["job_name"])
+job_failures_total = Counter(
+    "job_failures_total", "Total number of failed job runs", ["job_name"]
+)
+job_duration_seconds = Histogram(
+    "job_duration_seconds", "Job duration in seconds", ["job_name"]
+)
+job_last_success = Gauge(
+    "job_last_success_timestamp", "Unix timestamp of last successful run", ["job_name"]
+)
 
 JOB_NAME = "heartbeat"
+
 
 def run_job():
     start = time.time()
@@ -40,6 +44,7 @@ def run_job():
     finally:
         elapsed = time.time() - start
         job_duration_seconds.labels(job_name=JOB_NAME).observe(elapsed)
+
 
 if __name__ == "__main__":
     start_http_server(METRICS_PORT)
